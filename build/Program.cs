@@ -792,7 +792,7 @@ public sealed class MakePackagesTask : AsyncFrostingTaskBase<BuildContext>
         {
             Id = id,
             Version = new NuGetVersion($"{context.TargetVersion.GameVersion}-{BuildContext.DehumidifierVersionDiscriminatorPrefix}.{nextRevision}"),
-            Authors =  context.GameMetadata.NuGet.Authors ?? ["lordfirespeed"],
+            Authors =  context.GameMetadata.NuGet.Authors ?? ["Cmmmmmm"],
             Description = context.GameMetadata.NuGet.Description 
                           + "\n\nGenerated and managed by GameLib Dehumidifier.",
             DependencyGroups = context.TargetVersion.FrameworkTargets.Select(
