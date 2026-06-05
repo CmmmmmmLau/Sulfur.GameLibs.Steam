@@ -806,7 +806,7 @@ public sealed class MakePackagesTask : AsyncFrostingTaskBase<BuildContext>
             )
         };
         
-        metadata.SetProjectUrl("https://github.com/Lordfirespeed/NuGet-GameLib-Dehumidifier");
+        metadata.SetProjectUrl("https://github.com/CmmmmmmLau/Sulfur.GameLibs.Steam");
 
         ManifestFile[] files = [
             new()
