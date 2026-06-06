@@ -1,0 +1,17 @@
+{
+  "buildId": 23587574,
+  "timeUpdated": 1780671730,
+  "gameVersion": "0.17.3",
+  "depots": [
+    {
+      "depotId": 2124121,
+      "manifestId": 8720164794686511547
+    }
+  ],
+  "frameworkTargets": [
+    {
+      "tfm": "netstandard2.0",
+      "dependencies": []
+    }
+  ]
+}
