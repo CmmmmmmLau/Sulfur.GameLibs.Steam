@@ -1,3 +1,4 @@
+
 name: Update GameLibs for Version
 
 on:
@@ -31,6 +32,10 @@ jobs:
   detect-versions:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
     outputs:
       matrix: ${{ steps.detect.outputs.matrix }}
       has_changes: ${{ steps.detect.outputs.has_changes }}
@@ -79,12 +84,23 @@ jobs:
 
   update-version:
     needs: detect-versions
+
+    # Allow workflow_dispatch and workflow_call even though
+    # detect-versions is intentionally skipped for those events.
     if: |
-      github.event_name != 'push' ||
-      needs.detect-versions.outputs.has_changes == 'true'
+      always() &&
+      (
+        github.event_name != 'push' ||
+        needs.detect-versions.outputs.has_changes == 'true'
+      )
 
     name: Update GameLibs package
     runs-on: ubuntu-latest
+
+    # Required for NuGet Trusted Publishing (GitHub OIDC).
+    permissions:
+      contents: read
+      id-token: write
 
     strategy:
       matrix: ${{ github.event_name == 'push' && fromJson(needs.detect-versions.outputs.matrix) || fromJson(format('{{"include":[{{"game":"{0}","buildId":{1}}}]}}', inputs.game, inputs.buildId)) }}
@@ -115,17 +131,61 @@ jobs:
           steam_config_vdf: ${{ secrets.steam_config_vdf }}
           steam_username: ${{ secrets.steam_username }}
 
-      - name: Build and push NuGet package
+      # Build packages only. No NuGet API key is needed here.
+      - name: Build NuGet packages
+        env:
+          GAME_NAME: ${{ matrix.game }}
+          BUILD_ID: ${{ matrix.buildId }}
+          STEAM_USERNAME: ${{ secrets.steam_username }}
+        shell: bash
         run: |
           ./build.sh \
-            --target PushNuGetPackages \
-            --game ${{ matrix.game }} \
-            --build ${{ matrix.buildId }} \
-            --steam-username ${{ secrets.steam_username }} \
-            --nuget-api-key ${{ secrets.nuget_api_key }}
+            --target MakePackages \
+            --game "$GAME_NAME" \
+            --build "$BUILD_ID" \
+            --steam-username "$STEAM_USERNAME"
 
+      # Save packages even if the subsequent publishing fails.
       - name: Upload Artifacts
+        if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.game }}-build-${{ matrix.buildId }}
-          path: "Games/*/nupkgs/*.nupkg"
+          path: "Games/${{ matrix.game }}/nupkgs/*.nupkg"
+          if-no-files-found: warn
+
+      # Exchange GitHub OIDC token for a temporary NuGet API key.
+      - name: NuGet login (OIDC)
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      # Push all generated packages.
+      - name: Push NuGet packages
+        shell: bash
+        env:
+          GAME_NAME: ${{ matrix.game }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          : "${NUGET_API_KEY:?NuGet login did not return an API key}"
+
+          shopt -s nullglob
+          packages=( "Games/${GAME_NAME}/nupkgs/"*.nupkg )
+
+          if [ ${#packages[@]} -eq 0 ]; then
+            echo "::error::No NuGet packages found for ${GAME_NAME}"
+            exit 1
+          fi
+
+          for package in "${packages[@]}"; do
+            echo "Pushing ${package}"
+
+            dotnet nuget push "$package" \
+              --source "https://api.nuget.org/v3/index.json" \
+              --api-key "$NUGET_API_KEY" \
+              --skip-duplicate
+          done
