@@ -58,6 +58,9 @@ jobs:
   dispatch-game-version-package-updates:
     needs: game-update-check
     if: ${{ needs.game-update-check.outputs.buildIds != '[]' && needs.game-update-check.outputs.buildIds != '' }}
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       matrix:
         buildId: ${{ fromJson(needs.game-update-check.outputs.buildIds) }}
